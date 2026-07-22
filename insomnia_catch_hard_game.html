@@ -1,0 +1,139 @@
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">A hard catching game where the sleep meter constantly drains and you must catch good sleep items while dodging disruptors.</h2>
+<div style="max-width:640px;margin:0 auto;">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:180px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);margin-bottom:4px;">
+        <span>Sleep meter (always draining)</span><span id="iMeterL">50%</span>
+      </div>
+      <div style="height:10px;background:var(--surface-1);border:0.5px solid var(--border);border-radius:6px;overflow:hidden;">
+        <div id="iMeterF" style="height:100%;width:50%;background:#7F77DD;"></div>
+      </div>
+    </div>
+    <div style="background:var(--surface-1);border-radius:var(--radius);padding:6px 12px;text-align:center;">
+      <div style="font-size:11px;color:var(--text-muted);">Score</div>
+      <div id="iScore" style="font-size:16px;font-weight:500;">0</div>
+    </div>
+    <div style="background:var(--surface-1);border-radius:var(--radius);padding:6px 12px;text-align:center;">
+      <div style="font-size:11px;color:var(--text-muted);">Lives</div>
+      <div id="iLives" style="font-size:16px;font-weight:500;color:#D4537E;">2</div>
+    </div>
+  </div>
+  <div style="position:relative;border:0.5px solid var(--border);border-radius:12px;overflow:hidden;background:#221d52;">
+    <canvas id="iCv" width="640" height="400" style="display:block;width:100%;height:auto;touch-action:none;"></canvas>
+    <div id="iOv" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(15,13,50,0.85);text-align:center;padding:20px;">
+      <div id="iT" style="font-size:20px;font-weight:500;color:#EEEDFE;">Insomnia catch</div>
+      <div id="iX" style="font-size:14px;color:#CECBF6;max-width:420px;line-height:1.6;">Your sleep meter drains every second. Catch moons, pillows, tea, and books to refill it before it hits zero. Coffee, phones, and energy drinks cost a life — you only have 2. Reach 100% to win.</div>
+      <button id="iB" style="background:#EEEDFE;color:#26215C;border:none;padding:8px 20px;border-radius:8px;font-size:14px;cursor:pointer;">Start</button>
+    </div>
+  </div>
+  <p style="font-size:12px;color:var(--text-muted);margin:8px 0 0;">Move: arrow keys, A / D, or drag · golden moon = +15</p>
+</div>
+<script>
+(function(){
+var cv = document.getElementById('iCv'), g = cv.getContext('2d');
+var W = 640, H = 400;
+var mF = document.getElementById('iMeterF'), mL = document.getElementById('iMeterL');
+var sc = document.getElementById('iScore'), lv = document.getElementById('iLives');
+var ov = document.getElementById('iOv'), oT = document.getElementById('iT'), oX = document.getElementById('iX'), oB = document.getElementById('iB');
+
+function rrect(c,x,y,w,h,r){r=Math.min(r,w/2,h/2);c.beginPath();c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.arcTo(x+w,y,x+w,y+r,r);c.lineTo(x+w,y+h-r);c.arcTo(x+w,y+h,x+w-r,y+h,r);c.lineTo(x+r,y+h);c.arcTo(x,y+h,x,y+h-r,r);c.lineTo(x,y+r);c.arcTo(x,y,x+r,y,r);c.closePath();}
+
+var running=false, meter, score, lives, items, elapsed, spawnT, keys={}, lastT=0;
+var pad={x:W/2-40,w:80,y:H-42,h:16,speed:420};
+var stars=[]; for(var i=0;i<34;i++)stars.push({x:Math.random()*W,y:Math.random()*H*0.75,r:Math.random()*1.4+0.5,p:Math.random()*6.28});
+
+function reset(){meter=50;score=0;lives=2;items=[];elapsed=0;spawnT=0.5;pad.x=W/2-40;}
+
+function spawn(){
+  var goodChance=Math.max(0.45,0.6-elapsed*0.004);
+  var r=Math.random();
+  var it={x:40+Math.random()*(W-80),y:-24,drift:(Math.random()-0.5)*90,ph:Math.random()*6.28};
+  it.vy=(220+Math.random()*90)+Math.min(160,elapsed*4);
+  if(r<0.08){it.kind='gold';}
+  else if(r<goodChance+0.08){it.kind=['moon','pillow','tea','book'][Math.floor(Math.random()*4)];}
+  else{it.kind=['coffee','phone','energy'][Math.floor(Math.random()*3)];}
+  it.bad=(it.kind==='coffee'||it.kind==='phone'||it.kind==='energy');
+  items.push(it);
+}
+
+function update(dt){
+  elapsed+=dt;
+  meter-=2.2*dt;
+  if(keys.ArrowLeft||keys.a)pad.x-=pad.speed*dt;
+  if(keys.ArrowRight||keys.d)pad.x+=pad.speed*dt;
+  if(pad.x<0)pad.x=0; if(pad.x>W-pad.w)pad.x=W-pad.w;
+  spawnT-=dt;
+  if(spawnT<=0){spawn();spawnT=Math.max(0.42,0.85-elapsed*0.008);}
+  for(var i=items.length-1;i>=0;i--){
+    var it=items[i];
+    it.y+=it.vy*dt;
+    it.x+=Math.sin(it.ph+elapsed*2.2)*it.drift*dt;
+    if(it.x<16)it.x=16; if(it.x>W-16)it.x=W-16;
+    if(it.y>pad.y-10&&it.y<pad.y+pad.h+14&&it.x>pad.x-10&&it.x<pad.x+pad.w+10){
+      if(it.kind==='gold'){meter+=15;score+=200;}
+      else if(it.bad){lives--;meter-=8;}
+      else{meter+=6+Math.random()*3;score+=60;}
+      items.splice(i,1);continue;
+    }
+    if(it.y>H+24)items.splice(i,1);
+  }
+  if(meter>100)meter=100; if(meter<0)meter=0;
+  mF.style.width=meter+'%';
+  mL.textContent=Math.round(meter)+'%';
+  sc.textContent=score;
+  lv.textContent=Math.max(0,lives);
+  if(meter>=100)end(true,'You reached 100% sleep. A full night of rest restores focus, mood, and immune strength. Score: '+score+'.');
+  else if(meter<=0)end(false,'The meter hit zero — chronic sleep loss builds up as sleep debt that one lie-in cannot repay. Score: '+score+'.');
+  else if(lives<=0)end(false,'Too many disruptors. Caffeine, screens, and late sugar are the top three sleep thieves. Score: '+score+'.');
+}
+
+function drawItem(it){
+  g.save();g.translate(it.x,it.y);
+  var k=it.kind;
+  if(k==='gold'){g.fillStyle='#FAC775';g.beginPath();g.arc(0,0,15,0,6.29);g.fill();g.fillStyle='#221d52';g.beginPath();g.arc(7,-5,11,0,6.29);g.fill();g.strokeStyle='#FAC775';g.lineWidth=2;g.beginPath();g.arc(0,0,19,0,6.29);g.stroke();}
+  else if(k==='moon'){g.fillStyle='#AFA9EC';g.beginPath();g.arc(0,0,13,0,6.29);g.fill();g.fillStyle='#221d52';g.beginPath();g.arc(6,-4,10,0,6.29);g.fill();}
+  else if(k==='pillow'){g.fillStyle='#9FE1CB';rrect(g,-15,-9,30,18,8);g.fill();}
+  else if(k==='tea'){g.fillStyle='#F5C4B3';rrect(g,-11,-7,22,15,3);g.fill();g.strokeStyle='#F5C4B3';g.lineWidth=1.5;g.beginPath();g.arc(13,0,5,-1.57,1.57);g.stroke();}
+  else if(k==='book'){g.fillStyle='#B5D4F4';rrect(g,-12,-9,24,18,2);g.fill();g.strokeStyle='#0C447C';g.lineWidth=1.5;g.beginPath();g.moveTo(0,-9);g.lineTo(0,9);g.stroke();}
+  else if(k==='coffee'){g.fillStyle='#EF9F27';g.beginPath();g.moveTo(-9,-8);g.lineTo(9,-8);g.lineTo(6,10);g.lineTo(-6,10);g.closePath();g.fill();}
+  else if(k==='phone'){g.fillStyle='#F09595';rrect(g,-8,-13,16,26,3);g.fill();g.fillStyle='#501313';g.fillRect(-5,-9,10,14);}
+  else{g.fillStyle='#E24B4A';rrect(g,-7,-13,14,26,3);g.fill();g.strokeStyle='#FCEBEB';g.lineWidth=2;g.beginPath();g.moveTo(2,-9);g.lineTo(-3,0);g.lineTo(3,0);g.lineTo(-2,9);g.stroke();}
+  g.restore();
+}
+
+function render(t){
+  g.fillStyle='#221d52';g.fillRect(0,0,W,H);
+  for(var i=0;i<stars.length;i++){var s=stars[i];g.globalAlpha=0.35+0.35*Math.sin(t/700+s.p);g.fillStyle='#CECBF6';g.beginPath();g.arc(s.x,s.y,s.r,0,6.29);g.fill();}
+  g.globalAlpha=1;
+  g.fillStyle='#3C3489';g.fillRect(0,H-18,W,18);
+  for(var j=0;j<items.length;j++)drawItem(items[j]);
+  g.fillStyle='#EEEDFE';rrect(g,pad.x,pad.y,pad.w,pad.h,8);g.fill();
+  g.fillStyle='#AFA9EC';rrect(g,pad.x+6,pad.y+3,pad.w-12,4,2);g.fill();
+}
+
+function loop(t){
+  if(!running)return;
+  var dt=Math.min(0.033,(t-lastT)/1000||0.016);
+  lastT=t;
+  update(dt);
+  if(running)render(t);
+  requestAnimationFrame(loop);
+}
+
+function end(won,msg){
+  running=false;
+  oT.textContent=won?'Fully rested':'Wide awake at 3 am';
+  oX.textContent=msg;
+  oB.textContent='Play again';
+  ov.style.display='flex';
+}
+
+oB.addEventListener('click',function(){reset();ov.style.display='none';running=true;lastT=performance.now();requestAnimationFrame(loop);});
+window.addEventListener('keydown',function(e){if(['ArrowLeft','ArrowRight','a','d'].indexOf(e.key)>=0){keys[e.key]=true;e.preventDefault();}});
+window.addEventListener('keyup',function(e){keys[e.key]=false;});
+function drag(cxp){var r=cv.getBoundingClientRect();var gx=(cxp-r.left)/r.width*W;pad.x=Math.max(0,Math.min(W-pad.w,gx-pad.w/2));}
+cv.addEventListener('pointerdown',function(e){e.preventDefault();drag(e.clientX);});
+cv.addEventListener('pointermove',function(e){if(e.buttons||e.pointerType==='touch')drag(e.clientX);});
+cv.addEventListener('touchmove',function(e){drag(e.touches[0].clientX);e.preventDefault();},{passive:false});
+})();
+</script>
